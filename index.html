@@ -363,7 +363,7 @@
 
 let totalCredits =
     Number(localStorage.getItem("totalCredits")) || 0;
-function registerCourse(code, name, credits, button) {
+async function registerCourse(code, name, credits, button) {
 
     registeredCourses.push({
         code: code,
@@ -394,18 +394,20 @@ function registerCourse(code, name, credits, button) {
 
     displayRegisteredCourses();
 
-    saveRegistrationToFirestore({
+   
+ await saveRegistrationToFirestore({
         code: code,
         name: name,
         credits: credits
     });
+await loadAdminRegistrations();
 
     alert("Course registered successfully: " + code);
 }
     
     async function saveRegistrationToFirestore(course) {
     try {
-        await addDoc(collection(firestore, "registrations"), {
+        await addDoc(collection(window.firestore, "registrations"), {
             studentName: "Raymond Kanyesigye",
             studentId: "CS/2026/001",
             courseCode: course.code,
@@ -539,6 +541,12 @@ if (savedStatus) {
         doc,
         deleteDoc
     } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
+    import {
+    getStorage,
+    ref,
+    uploadBytes,
+    getDownloadURL
+} from "https://www.gstatic.com/firebasejs/12.19.0/firebase-storage.js";
      import {
     getAuth,
     createUserWithEmailAndPassword,
@@ -558,12 +566,14 @@ if (savedStatus) {
 
     const app = initializeApp(firebaseConfig);
     const firestore = getFirestore(app);
+    const storage = getStorage(app);
+    window.firestore = firestore;
     async function loadAdminRegistrations() {
     const tableBody = document.getElementById("adminTableBody");
 
     try {
-        const querySnapshot = await getDocs(
-            collection(firestore, "registrations")
+       const querySnapshot = await getDocs(
+            collection(window.firestore, "registrations")
         );
 
         tableBody.innerHTML = "";
@@ -672,7 +682,7 @@ onAuthStateChanged(auth, (user) => {
     studentSystem.style.display = "block";
 
     loadAdminRegistrations();
-    adminDashboard.style.display = "block";
+    showAdminDashboard();
 } else {
     authSection.style.display = "block";
     studentSystem.style.display = "none";
@@ -694,7 +704,7 @@ async function updateRegistrationStatus(registrationId, status) {
         } else {
 
             await updateDoc(
-                doc(firestore, "registrations", registrationId),
+                doc(window.firestore, "registrations", registrationId),
                 {
                     registrationStatus: "Approved"
                 }
@@ -710,6 +720,49 @@ async function updateRegistrationStatus(registrationId, status) {
     }
 }
 window. updateRegistrationStatus = updateRegistrationStatus;
+window.showAdminDashboard = function() {
+    const adminDashboard = document.getElementById("adminDashboard");
+
+    if (adminDashboard) {
+        adminDashboard.style.display = "block";
+        loadAdminRegistrations();
+    }
+};
+setInterval(() => {
+    loadAdminRegistrations();
+}, 2000);
+async function uploadDocuments() {
+    const s4File = document.getElementById("s4Slip").files[0];
+    const s6File = document.getElementById("s6Slip").files[0];
+    const message = document.getElementById("uploadMessage");
+
+    if (!s4File || !s6File) {
+        message.innerText = "Please select both S4 and S6 pass slips.";
+        return;
+    }
+
+    try {
+        message.innerText = "Uploading documents...";
+
+        const s4Ref = ref(storage, "studentDocuments/S4_" + s4File.name);
+        const s6Ref = ref(storage, "studentDocuments/S6_" + s6File.name);
+
+        await uploadBytes(s4Ref, s4File);
+        await uploadBytes(s6Ref, s6File);
+
+        const s4URL = await getDownloadURL(s4Ref);
+        const s6URL = await getDownloadURL(s6Ref);
+
+        message.innerText = "S4 and S6 pass slips uploaded successfully!";
+
+        console.log("S4:", s4URL);
+        console.log("S6:", s6URL);
+
+    } catch (error) {
+        console.error(error);
+        message.innerText = "Upload error: " + error.message;
+    }
+}
 </script>
 <div id="adminDashboard" style="display: none;">
 
